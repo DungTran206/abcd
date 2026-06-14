@@ -1,0 +1,47 @@
+{% extends 'onlinecourse/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h1>{{ course.name }}</h1>
+        </div>
+        <div class="card-body">
+            <p class="card-text">{{ course.description }}</p>
+
+            <h3 class="mt-4">Lessons</h3>
+            <ul class="list-group">
+                {% for lesson in course.lesson_set.all %}
+                <li class="list-group-item">{{ lesson.title }}</li>
+                {% endfor %}
+            </ul>
+
+            {% if user.is_authenticated %}
+            <hr>
+            <h3>Exam</h3>
+            <form action="{% url 'onlinecourse:submit' course.id %}" method="post">
+                {% csrf_token %}
+                {% for question in course.question_set.all %}
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <strong>{{ question.content }}</strong> <span class="badge badge-info">Grade: {{ question.grade }}</span>
+                    </div>
+                    <div class="card-body">
+                        {% for choice in question.choice_set.all %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   name="choice_{{ choice.id }}" value="{{ choice.id }}">
+                            <label class="form-check-label">{{ choice.content }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+                <button type="submit" class="btn btn-success">Submit Exam</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

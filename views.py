@@ -1,47 +1,47 @@
-{% extends 'onlinecourse/base.html' %}
-{% load static %}
+from django.shortcuts import render, get_object_or_404
+from django.http import HttpResponseRedirect
+from django.urls import reverse
+from .models import Course, Enrollment, Question, Choice, Submission
 
-{% block content %}
-<div class="container mt-4">
-    <div class="card">
-        <div class="card-header bg-primary text-white">
-            <h1>{{ course.name }}</h1>
-        </div>
-        <div class="card-body">
-            <p class="card-text">{{ course.description }}</p>
+def extract_answers(request):
+    selected = []
+    for key in request.POST:
+        if key.startswith('choice_'):
+            choice_id = int(request.POST[key])
+            selected.append(choice_id)
+    return selected
 
-            <h3 class="mt-4">Lessons</h3>
-            <ul class="list-group">
-                {% for lesson in course.lesson_set.all %}
-                <li class="list-group-item">{{ lesson.title }}</li>
-                {% endfor %}
-            </ul>
+def submit(request, course_id):
+    course = get_object_or_404(Course, pk=course_id)
+    user = request.user
+    enrollment = Enrollment.objects.get(user=user, course=course)
+    
+    submission = Submission.objects.create(enrollment=enrollment)
+    selected_choices = extract_answers(request)
+    submission.choices.set(selected_choices)
+    
+    return HttpResponseRedirect(reverse('onlinecourse:exam_result', args=(course_id, submission.id)))
 
-            {% if user.is_authenticated %}
-            <hr>
-            <h3>Exam</h3>
-            <form action="{% url 'onlinecourse:submit' course.id %}" method="post">
-                {% csrf_token %}
-                {% for question in course.question_set.all %}
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <strong>{{ question.content }}</strong> <span class="badge badge-info">Grade: {{ question.grade }}</span>
-                    </div>
-                    <div class="card-body">
-                        {% for choice in question.choice_set.all %}
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox"
-                                   name="choice_{{ choice.id }}" value="{{ choice.id }}">
-                            <label class="form-check-label">{{ choice.content }}</label>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endfor %}
-                <button type="submit" class="btn btn-success">Submit Exam</button>
-            </form>
-            {% endif %}
-        </div>
-    </div>
-</div>
-{% endblock %}
+def show_exam_result(request, course_id, submission_id):
+    course = get_object_or_404(Course, pk=course_id)
+    submission = Submission.objects.get(id=submission_id)
+    selected_choices = submission.choices.all()
+    
+    questions = Question.objects.filter(course=course)
+    total_grade = 0
+    possible_score = 0
+    
+    for question in questions:
+        selected_ids = [choice.id for choice in selected_choices if choice.question == question]
+        if question.is_get_score(selected_ids):
+            total_grade += question.grade
+        possible_score += question.grade
+    
+    context = {
+        'course': course,
+        'grade': total_grade,
+        'possible': possible_score,
+        'choices': selected_choices,
+        'questions': questions,
+    }
+    return render(request, 'onlinecourse/exam_result_bootstrap.html', context)
